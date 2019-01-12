@@ -48,11 +48,37 @@ def copy_rules_from_file(file_path):
                     equal_file = False
 
     f.close()
-    
+
+def calc_words_count(file_path):
+    global word_list
+    word_list = sorted(word_list)
+    i = 0
+    words_count = {}
+
+    #init words_count
+    for element in word_list:
+        words_count[word_list[i]] = 1
+        i += 1
+    #print (words_count)
+
+    #work with file again
+    i = 0
+    while i < len(words_count):
+        scan_file_again(i,file_path)
+        i += 1
+
+def scan_file_again(i,file_path):
+    f = open(file_path, 'r', encoding='utf8')
+    for line in f:
+        print (i)
+        #if re.findall(word_list[i], line):
+            #words_count[word_list[i]] = words_count[word_list[i]] + 1
+            #print (word_list[i])
+    f.close()
+
 
 print_files_on_dir("CSV") #files in dir
 file_number = int(input())
 copy_rules_from_file(str(files[file_number]))
 
-word_list = sorted(word_list)
-print (word_list)
+calc_words_count(str(files[file_number]))
