@@ -54,7 +54,6 @@ def calc_words_count(file_path):
     word_list = sorted(word_list)
     i = 0
     words_count = {}
-
     #init words_count
     for element in word_list:
         words_count[word_list[i]] = 1
@@ -64,16 +63,21 @@ def calc_words_count(file_path):
     #work with file again
     i = 0
     while i < len(words_count):
+        print ("this")
+        print (word_list[i])
         scan_file_again(i,file_path)
         i += 1
 
-def scan_file_again(i,file_path):
+def scan_file_again(m,file_path):
     f = open(file_path, 'r', encoding='utf8')
     for line in f:
-        print (i)
-        #if re.findall(word_list[i], line):
-            #words_count[word_list[i]] = words_count[word_list[i]] + 1
-            #print (word_list[i])
+        print (m)
+        #global word_list
+        target_line = re.findall(word_list[m], line)
+        print (target_line)
+            #global words_count
+            #words_count[word_list[m]] = words_count[word_list[m]] + 1
+            #print (word_list[m])
     f.close()
 
 
