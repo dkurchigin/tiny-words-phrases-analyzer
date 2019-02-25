@@ -1,5 +1,6 @@
 import re
 import os
+import sqlite3
 
 directory = '.'
 files = os.listdir(directory)
@@ -7,6 +8,30 @@ files = os.listdir(directory)
 word_list = []
 
 WORD_WEIGHT = 3
+
+def check_db_exist(file_path):
+    print(file_path)
+    base_extension = ".db"
+    file_path = file_path + base_extension
+    if os.path.isfile(file_path):
+        os.remove(file_path)
+        print("Delete older version of", file_path)
+    write_data(file_path)
+    print("Create database:", file_path)
+
+def write_data(file_path):
+    con = sqlite3.connect(file_path)
+
+    cur = con.cursor()
+    cur.execute('CREATE TABLE users (id INTEGER PRIMARY KEY, firstName VARCHAR(100), secondName VARCHAR(30))')
+    con.commit()
+    cur.execute('INSERT INTO users (id, firstName, secondName) VALUES(NULL, "Guido", "van Rossum")')
+    con.commit()
+    print(cur.lastrowid)
+
+    cur.execute('SELECT * FROM users')
+    print(cur.fetchall())
+    con.close()
 
 def print_files_on_dir(text):
     n = 0   
@@ -84,4 +109,5 @@ print_files_on_dir("CSV") #files in dir
 file_number = int(input())
 copy_rules_from_file(str(files[file_number]))
 
-calc_words_count(str(files[file_number]))
+#calc_words_count(str(files[file_number]))
+check_db_exist(str(files[file_number]))
