@@ -83,7 +83,7 @@ def calc_words_count(file_path):
     for element in word_list:
         words_count[word_list[i]] = 1
         i += 1
-    #print (words_count)
+    #print(words_count)
 
     #work with file again
     i = 0
@@ -93,12 +93,15 @@ def calc_words_count(file_path):
 
 def scan_file_again(m,file_path):
     f = open(file_path, 'r', encoding='utf8')
+    line_number = 0
     for line in f:
+        line_number += 1
         #print (m)
         #global word_list
         target_line = re.findall(word_list[m], line)
         if target_line:
-            print (target_line)
+            #print (target_line)
+            print("Word:",word_list[m], " - number in line", len(target_line), "number of line", line_number)
             #global words_count
             #words_count[word_list[m]] = words_count[word_list[m]] + 1
             #print (word_list[m])
@@ -109,5 +112,5 @@ print_files_on_dir("CSV") #files in dir
 file_number = int(input())
 copy_rules_from_file(str(files[file_number]))
 
-#calc_words_count(str(files[file_number]))
-check_db_exist(str(files[file_number]))
+calc_words_count(str(files[file_number]))
+#check_db_exist(str(files[file_number]))
