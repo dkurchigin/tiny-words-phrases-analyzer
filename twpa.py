@@ -16,22 +16,34 @@ def check_db_exist(file_path):
     if os.path.isfile(file_path):
         os.remove(file_path)
         print("Delete older version of", file_path)
-    write_data(file_path)
+    create_db(file_path)
     print("Create database:", file_path)
 
-def write_data(file_path):
+def write_data(file_path, word, line_in_file):
     con = sqlite3.connect(file_path)
 
     cur = con.cursor()
-    cur.execute('CREATE TABLE users (id INTEGER PRIMARY KEY, firstName VARCHAR(100), secondName VARCHAR(30))')
+    cur.execute('INSERT INTO parsed_file (id, word, line_in_file) VALUES(NULL, "' + word + '", "' + str(line_in_file) + '")')
     con.commit()
-    cur.execute('INSERT INTO users (id, firstName, secondName) VALUES(NULL, "Guido", "van Rossum")')
-    con.commit()
-    print(cur.lastrowid)
+    #print(cur.lastrowid)
 
-    cur.execute('SELECT * FROM users')
+def show_data_in_db(file_path):
+    con = sqlite3.connect(file_path)
+
+    cur = con.cursor()
+    cur.execute('SELECT * FROM parsed_file')
     print(cur.fetchall())
     con.close()
+
+def create_db(file_path):
+    con = sqlite3.connect(file_path)
+
+    cur = con.cursor()
+    cur.execute('CREATE TABLE parsed_file (id INTEGER PRIMARY KEY, word VARCHAR(100), line_in_file VARCHAR(30))')
+    con.commit()
+    con.close()
+
+    #write_data(file_path)
 
 def print_files_on_dir(text):
     n = 0   
@@ -67,10 +79,8 @@ def copy_rules_from_file(file_path):
                     if word_list[n] == word:
                         equal_file = True
                     n += 1
-                if equal_file == False:
+                if not equal_file:
                     word_list.append(word)
-                else:
-                    equal_file = False
 
     f.close()
 
@@ -83,7 +93,6 @@ def calc_words_count(file_path):
     for element in word_list:
         words_count[word_list[i]] = 1
         i += 1
-    #print(words_count)
 
     #work with file again
     i = 0
@@ -96,15 +105,12 @@ def scan_file_again(m,file_path):
     line_number = 0
     for line in f:
         line_number += 1
-        #print (m)
-        #global word_list
         target_line = re.findall(word_list[m], line)
         if target_line:
             #print (target_line)
-            print("Word:",word_list[m], " - number in line", len(target_line), "number of line", line_number)
-            #global words_count
-            #words_count[word_list[m]] = words_count[word_list[m]] + 1
-            #print (word_list[m])
+            #print("Word:",word_list[m], " - number in line", len(target_line), "number of line", line_number)
+            #print(file_path + ".db")
+            write_data(file_path + ".db", word_list[m], line_number)
     f.close()
 
 
@@ -112,5 +118,6 @@ print_files_on_dir("CSV") #files in dir
 file_number = int(input())
 copy_rules_from_file(str(files[file_number]))
 
+check_db_exist(str(files[file_number]))
 calc_words_count(str(files[file_number]))
-#check_db_exist(str(files[file_number]))
+show_data_in_db(str(files[file_number]) + ".db")
