@@ -21,22 +21,26 @@ def check_db_exist(file_path):
     print("Create database:", file_path)
 
 
-def write_data(file_path, list_sql):
+def write_data(file_path, list_sql, table):
     con = sqlite3.connect(file_path)
     cur = con.cursor()
     for element in list_sql:
-        #print(type(element), element)
-        word = re.sub(r'\s.*$', '', element)
-        line_in_file = re.sub(r'^.*\s', '', element)
-        cur.execute('INSERT INTO parsed_file (id, word, line_in_file) VALUES(NULL, "' + word + '", "' + str(line_in_file) + '")')
+        if table == 'parsed_file':
+            word = re.sub(r'\s.*$', '', element)
+            line_in_file = re.sub(r'^.*\s', '', element)
+            cur.execute('INSERT INTO parsed_file (id, word, line_in_file) VALUES(NULL, "' + word + '", "' + str(line_in_file) + '")')
+        elif table == 'phrases':
+            element = re.sub(r'\n', '', element)
+            cur.execute('INSERT INTO phrases (id, phrase) VALUES(NULL, "' + element + '")')
     con.commit()
     con.close()
 
-def show_data_in_db(file_path):
+
+def show_data_in_db(file_path, table):
     con = sqlite3.connect(file_path)
 
     cur = con.cursor()
-    cur.execute('SELECT * FROM parsed_file')
+    cur.execute('SELECT * FROM ' + table)
     print(cur.fetchall())
     con.close()
 
@@ -46,7 +50,7 @@ def create_db(file_path):
 
     cur = con.cursor()
     cur.execute('CREATE TABLE parsed_file (id INTEGER PRIMARY KEY, word VARCHAR(100), line_in_file VARCHAR(30))')
-    cur.execute('CREATE TABLE words (id INTEGER PRIMARY KEY, word VARCHAR(100), count VARCHAR(30))')
+    cur.execute('CREATE TABLE phrases (id INTEGER PRIMARY KEY, phrase VARCHAR(255))')
     con.commit()
     con.close()
 
@@ -73,8 +77,10 @@ def print_files_on_dir(text):
 
 def copy_rules_from_file(file_path):
     f = open(file_path, 'r', encoding='utf8')
-    
+    list_for_sql = []
+
     for line in f:
+        list_for_sql.append(line)
         pattern_re = re.findall(r'.*',line)
         pattern_for_utterance = "".join(pattern_re)
         utterance = pattern_for_utterance.split()
@@ -89,6 +95,7 @@ def copy_rules_from_file(file_path):
                 if not equal_file:
                     word_list.append(word)
     f.close()
+    write_data(file_path + ".db", list_for_sql, "phrases")
 
 
 def calc_words_count(file_path):
@@ -103,7 +110,7 @@ def calc_words_count(file_path):
         for element in out_sql_element:
             list_for_sql.append(element)
         i += 1
-    write_data(file_path + ".db", list_for_sql)
+    write_data(file_path + ".db", list_for_sql, "parsed_file")
 
 
 def scan_file_again(m, file_path):
@@ -122,8 +129,10 @@ def scan_file_again(m, file_path):
 
 print_files_on_dir("CSV") #files in dir
 file_number = int(input())
-copy_rules_from_file(str(files[file_number]))
 
 check_db_exist(str(files[file_number]))
+copy_rules_from_file(str(files[file_number]))
+
 calc_words_count(str(files[file_number]))
-show_data_in_db(str(files[file_number]) + ".db")
+show_data_in_db(str(files[file_number]) + ".db", "parsed_file")
+show_data_in_db(str(files[file_number]) + ".db", "phrases")
