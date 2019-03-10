@@ -11,17 +11,24 @@ WORD_WEIGHT = 3
 
 
 def check_db_exist(file_path):
-    print(file_path)
     base_extension = ".db"
     file_path = file_path + base_extension
 
     if os.path.isfile(file_path):
-        os.remove(file_path)
-        print("Delete older version of", file_path)
-    create_db(file_path)
-    print("Create database:", file_path)
+        print("База данных {} уже существует. Переписать?".format(file_path))
+        print("(Y)es | (N)o?")
 
-    return file_path
+        answer = input()
+        pattern_for_yes = '(^[yY]$|^[yY][eE][sS]$|^[дД]$|^[дД][аА]$)'
+
+        if re.match(pattern_for_yes, answer):
+            os.remove(file_path)
+            print("Удаляю старую версию базы данных", file_path)
+            create_db(file_path)
+            print("Создана база:", file_path)
+            return file_path, True
+    return file_path, False
+
 
 def write_data(file_path, list_sql, table):
     con = sqlite3.connect(file_path)
@@ -77,18 +84,15 @@ def copy_rules_from_file(file_path):
 
     for line in f:
         list_for_sql.append(line)
-        pattern_re = re.findall(r'.*',line)
+        pattern_re = re.findall(r'.*', line)
         pattern_for_utterance = "".join(pattern_re)
         utterance = pattern_for_utterance.split()
         for word in utterance:
             if len(word) >= WORD_WEIGHT:
-                n = 0
-                equal_file = False
-                while n < len(word_list):
-                    if word_list[n] == word:
-                        equal_file = True
-                    n += 1
-                if not equal_file:
+                equal_word = False
+                if word in word_list:
+                    equal_word = True
+                if not equal_word:
                     word_list.append(word)
     f.close()
     write_data(file_path + ".db", list_for_sql, "phrases")
@@ -102,7 +106,7 @@ def calc_words_count(file_path):
 
     #work with file again
     for word in word_list:
-        out_sql_element = scan_file_again(word_list.index(word),file_path)
+        out_sql_element = scan_file_again(word_list.index(word), file_path)
         for element in out_sql_element:
             list_for_sql.append(element)
     write_data(file_path + ".db", list_for_sql, "parsed_file")
@@ -121,19 +125,21 @@ def scan_file_again(m, file_path):
     return word_in_lines
 
 
-def find_phrases_by_words(file_path, table, column, *words):
+def find_phrases_by_words(file_path, table, column, words_for_find):
     con = sqlite3.connect(file_path)
-
     cur = con.cursor()
-    cur.execute('SELECT * FROM ' + table + ' WHERE ' + summing_words_for_find(column, words) + '')
-    print(cur.fetchall())
+    try:
+        cur.execute('SELECT * FROM ' + table + ' WHERE ' + summing_words_for_find(column, words_for_find) + '')
+        print('SELECT * FROM ' + table + ' WHERE ' + summing_words_for_find(column, words_for_find) + '')
+        print(cur.fetchall())
+    except sqlite3.OperationalError:
+        print("Ошибка ввода, возможно введена пустая строка")
     con.close()
 
 
-def summing_words_for_find(column, words):
-    print(words, "<-")
+def summing_words_for_find(column, words_array):
     resulting_string = ""
-    for word in words[0]:
+    for word in words_array:
         if resulting_string == "":
             resulting_string = resulting_string + "{} like \"%{}%\"".format(column, word)
         else:
@@ -141,17 +147,25 @@ def summing_words_for_find(column, words):
     return resulting_string
 
 
+def input_words():
+    print("Введите через пробел слова для поиска:")
+    keywords = input()
+    return keywords.split()
+
+
 print_files_on_dir("CSV") #files in dir
 file_number = int(input())
 
 csv_file_path = str(files[file_number])
-db_file_path = check_db_exist(csv_file_path)
+db_file_path, write_to_db = check_db_exist(csv_file_path)
 
-copy_rules_from_file(csv_file_path)
+if write_to_db:
+    copy_rules_from_file(csv_file_path)
+    calc_words_count(csv_file_path)
 
-calc_words_count(csv_file_path)
-show_data_in_db(db_file_path, "parsed_file")
+#show_data_in_db(db_file_path, "parsed_file")
 show_data_in_db(db_file_path, "phrases")
 show_data_in_db(db_file_path, "unique_words")
-words = ["самсунг", "телевизор"]
-find_phrases_by_words(db_file_path, "phrases", "phrase", words)
+while True:
+    words = input_words()
+    find_phrases_by_words(db_file_path, "phrases", "phrase", words)
