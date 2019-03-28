@@ -42,7 +42,17 @@ def write_data(file_path, list_sql, table):
             element = re.sub(r'\n', '', element)
             cur.execute('INSERT INTO phrases (id, phrase) VALUES(NULL, "' + element + '")')
         elif table == 'unique_words':
-            cur.execute('INSERT INTO unique_words (id, word) VALUES(NULL, "' + element + '")')
+            cur.execute('INSERT INTO unique_words (id, word, word_count) VALUES(NULL, "' + element + '", NULL)')
+    con.commit()
+    con.close()
+
+
+def calc_unique_words(file_path, list_sql):
+    con = sqlite3.connect(file_path)
+    cur = con.cursor()
+    for element in list_sql:
+        cur.execute('update unique_words set word_count = ( select count(*) from parsed_file where word = "' + element +
+                    '" ) where word = "' + element + '"')
     con.commit()
     con.close()
 
@@ -51,10 +61,13 @@ def show_data_in_db(file_path, table):
     con = sqlite3.connect(file_path)
 
     cur = con.cursor()
-    cur.execute('SELECT * FROM ' + table)
-    print(cur.fetchall())
-    #for element in cur.fetchall():
-        #print(element[1])
+    if table == "unique_words":
+        cur.execute('SELECT * FROM {} ORDER BY word_count'.format(table))
+        for cur_element in cur.fetchall():
+            print("Слово \"{}\" встречается {} раз".format(cur_element[1], cur_element[2]))
+    else:
+        cur.execute('SELECT * FROM ' + table)
+        print(cur.fetchall())
     con.close()
 
 
@@ -64,7 +77,7 @@ def create_db(file_path):
     cur = con.cursor()
     cur.execute('CREATE TABLE parsed_file (id INTEGER PRIMARY KEY, word VARCHAR(100), line_in_file VARCHAR(30))')
     cur.execute('CREATE TABLE phrases (id INTEGER PRIMARY KEY, phrase VARCHAR(255))')
-    cur.execute('CREATE TABLE unique_words (id INTEGER PRIMARY KEY, word VARCHAR(255))')
+    cur.execute('CREATE TABLE unique_words (id INTEGER PRIMARY KEY, word VARCHAR(255), word_count INTEGER)')
     con.commit()
     con.close()
 
@@ -110,6 +123,7 @@ def calc_words_count(file_path):
         for element in out_sql_element:
             list_for_sql.append(element)
     write_data(file_path + ".db", list_for_sql, "parsed_file")
+    calc_unique_words(file_path + ".db", word_list)
 
 
 def scan_file_again(m, file_path):
@@ -118,7 +132,7 @@ def scan_file_again(m, file_path):
     word_in_lines = []
     for line in f:
         line_number += 1
-        target_line = re.findall(word_list[m], line)
+        target_line = re.findall("(\s|^){}(\s|$)".format(word_list[m]), line)
         if target_line:
             word_in_lines.append("{} {}".format(word_list[m], line_number))
     f.close()
@@ -164,7 +178,7 @@ if write_to_db:
     calc_words_count(csv_file_path)
 
 #show_data_in_db(db_file_path, "parsed_file")
-show_data_in_db(db_file_path, "phrases")
+#show_data_in_db(db_file_path, "phrases")
 show_data_in_db(db_file_path, "unique_words")
 while True:
     words = input_words()
