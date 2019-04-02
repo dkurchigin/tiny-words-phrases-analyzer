@@ -23,11 +23,10 @@ def check_db_exist(file_path):
 
         if re.match(pattern_for_yes, answer):
             os.remove(file_path)
-            print("Удаляю старую версию базы данных", file_path)
-            create_db(file_path)
-            print("Создана база:", file_path)
-            return file_path, True
-    return file_path, False
+            print("Удаляю старую версию базы данных {}".format(file_path))
+    create_db(file_path)
+    print("Создана база: {}".format(file_path))
+    return file_path, True
 
 
 def write_data(file_path, list_sql, table):
@@ -37,12 +36,13 @@ def write_data(file_path, list_sql, table):
         if table == 'parsed_file':
             word = re.sub(r'\s.*$', '', element)
             line_in_file = re.sub(r'^.*\s', '', element)
-            cur.execute('INSERT INTO parsed_file (id, word, line_in_file) VALUES(NULL, "' + word + '", "' + str(line_in_file) + '")')
+            cur.execute('INSERT INTO parsed_file (id, word, line_in_file) VALUES(NULL, \"{}\", {})'
+                        ''.format(word, str(line_in_file)))
         elif table == 'phrases':
             element = re.sub(r'\n', '', element)
-            cur.execute('INSERT INTO phrases (id, phrase) VALUES(NULL, "' + element + '")')
+            cur.execute('INSERT INTO phrases (id, phrase) VALUES(NULL, \"{}\")'.format(element))
         elif table == 'unique_words':
-            cur.execute('INSERT INTO unique_words (id, word, word_count) VALUES(NULL, "' + element + '", NULL)')
+            cur.execute('INSERT INTO unique_words (id, word, word_count) VALUES(NULL, \"{}\", NULL)'.format(element))
     con.commit()
     con.close()
 
@@ -51,8 +51,8 @@ def calc_unique_words(file_path, list_sql):
     con = sqlite3.connect(file_path)
     cur = con.cursor()
     for element in list_sql:
-        cur.execute('update unique_words set word_count = ( select count(*) from parsed_file where word = "' + element +
-                    '" ) where word = "' + element + '"')
+        cur.execute('update unique_words set word_count = ( select count(*) from parsed_file where word = \"{0}\" ) '
+                    'where word = \"{0}\"'.format(element))
     con.commit()
     con.close()
 
@@ -66,7 +66,7 @@ def show_data_in_db(file_path, table):
         for cur_element in cur.fetchall():
             print("Слово \"{}\" встречается {} раз".format(cur_element[1], cur_element[2]))
     else:
-        cur.execute('SELECT * FROM ' + table)
+        cur.execute('SELECT * FROM {}'.format(table))
         print(cur.fetchall())
     con.close()
 
@@ -87,11 +87,22 @@ def print_files_on_dir(text):
     for file in files:
         print("[{}] - {}".format(files.index(file), file))
     print('===================\n')
-    final_message = "Select " + text + " with tests. Enter the number:"
+    final_message = "Select {} with tests. Enter the number:".format(text)
     print(final_message)
 
 
+def clear_semicolon(file_path):
+    deleted_semicolon = []
+    with open(file_path, 'r', encoding='utf8') as f:
+        for line in f:
+            deleted_semicolon.append(re.sub(r';', '', line))
+    with open(file_path, 'w', encoding='utf8') as f:
+        for element in deleted_semicolon:
+            f.write(element)
+
+
 def copy_rules_from_file(file_path):
+    clear_semicolon(file_path)
     f = open(file_path, 'r', encoding='utf8')
     list_for_sql = []
 
@@ -143,8 +154,8 @@ def find_phrases_by_words(file_path, table, column, words_for_find):
     con = sqlite3.connect(file_path)
     cur = con.cursor()
     try:
-        cur.execute('SELECT * FROM ' + table + ' WHERE ' + summing_words_for_find(column, words_for_find) + '')
-        print('SELECT * FROM ' + table + ' WHERE ' + summing_words_for_find(column, words_for_find) + '')
+        cur.execute('SELECT * FROM {} WHERE {}'.format(table, summing_words_for_find(column, words_for_find)))
+        print('SELECT * FROM {} WHERE {}'.format(table, summing_words_for_find(column, words_for_find)))
         print(cur.fetchall())
     except sqlite3.OperationalError:
         print("Ошибка ввода, возможно введена пустая строка")
