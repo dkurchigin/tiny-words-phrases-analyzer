@@ -56,6 +56,26 @@ def calc_unique_words(file_path, list_sql):
     con.commit()
     con.close()
 
+    
+def calc_word_groups(file_path, word_list):
+    word_groups = []
+    for unique_word in word_list:
+        #print(unique_word)
+        for again_unique_word in word_list:
+            word_groups.append([unique_word, again_unique_word])
+    print(word_groups)
+    #return word_groups
+        
+    
+        
+    #con = sqlite3.connect(file_path)
+    #cur = con.cursor()
+    #for element in list_sql:
+        #cur.execute('update unique_words set word_count = ( select count(*) from parsed_file where word = \"{0}\" ) '
+                    #'where word = \"{0}\"'.format(element))
+    #con.commit()
+    #con.close()
+    
 
 def show_data_in_db(file_path, table):
     con = sqlite3.connect(file_path)
@@ -78,6 +98,7 @@ def create_db(file_path):
     cur.execute('CREATE TABLE parsed_file (id INTEGER PRIMARY KEY, word VARCHAR(100), line_in_file VARCHAR(30))')
     cur.execute('CREATE TABLE phrases (id INTEGER PRIMARY KEY, phrase VARCHAR(255))')
     cur.execute('CREATE TABLE unique_words (id INTEGER PRIMARY KEY, word VARCHAR(255), word_count INTEGER)')
+    cur.execute('CREATE TABLE word_group (id INTEGER PRIMARY KEY, words VARCHAR(255), word_group_count INTEGER)')
     con.commit()
     con.close()
 
@@ -135,6 +156,7 @@ def calc_words_count(file_path):
             list_for_sql.append(element)
     write_data(file_path + ".db", list_for_sql, "parsed_file")
     calc_unique_words(file_path + ".db", word_list)
+    calc_word_groups(file_path + ".db", word_list)
 
 
 def scan_file_again(m, file_path):
@@ -190,7 +212,7 @@ if write_to_db:
 
 #show_data_in_db(db_file_path, "parsed_file")
 #show_data_in_db(db_file_path, "phrases")
-show_data_in_db(db_file_path, "unique_words")
+#show_data_in_db(db_file_path, "unique_words")
 while True:
     words = input_words()
     find_phrases_by_words(db_file_path, "phrases", "phrase", words)
