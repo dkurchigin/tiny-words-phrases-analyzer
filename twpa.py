@@ -58,23 +58,19 @@ def calc_unique_words(file_path, list_sql):
 
     
 def calc_word_groups(file_path, word_list):
-    word_groups = []
+    con = sqlite3.connect(file_path)
+    cur = con.cursor()
+    
     for unique_word in word_list:
         #print(unique_word)
         for again_unique_word in word_list:
-            word_groups.append([unique_word, again_unique_word])
-    print(word_groups)
-    #return word_groups
-        
+            cur.execute('INSERT INTO word_group (id, words, word_group_count) VALUES(NULL, \"{}\", NULL)'.format([unique_word, again_unique_word]))
+            cur.execute('update word_group set word_group_count = ( select count(*) from phrases where {} ) where words = \"{}\"'.format(summing_words_for_find("phrase", [unique_word, again_unique_word]),[unique_word, again_unique_word]))
+            print([unique_word, again_unique_word])
+    #print(word_groups)
     
-        
-    #con = sqlite3.connect(file_path)
-    #cur = con.cursor()
-    #for element in list_sql:
-        #cur.execute('update unique_words set word_count = ( select count(*) from parsed_file where word = \"{0}\" ) '
-                    #'where word = \"{0}\"'.format(element))
-    #con.commit()
-    #con.close()
+    con.commit()
+    con.close()
     
 
 def show_data_in_db(file_path, table):
