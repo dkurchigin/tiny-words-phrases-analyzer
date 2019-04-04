@@ -57,17 +57,29 @@ def calc_unique_words(file_path, list_sql):
     con.close()
 
     
-def calc_word_groups(file_path, word_list):
+def calc_word_groups(file_path):
     con = sqlite3.connect(file_path)
     cur = con.cursor()
     
-    for unique_word in word_list:
-        #print(unique_word)
-        for again_unique_word in word_list:
-            cur.execute('INSERT INTO word_group (id, words, word_group_count) VALUES(NULL, \"{}\", NULL)'.format([unique_word, again_unique_word]))
-            cur.execute('update word_group set word_group_count = ( select count(*) from phrases where {} ) where words = \"{}\"'.format(summing_words_for_find("phrase", [unique_word, again_unique_word]),[unique_word, again_unique_word]))
-            print([unique_word, again_unique_word])
-    #print(word_groups)
+    cur.execute('SELECT count(*) FROM phrases')
+    max_lines = cur.fetchone()
+    
+    for element in range(max_lines[0]):
+        cur.execute('SELECT word FROM parsed_file where line_in_file = {}'.format(element+1))
+        elements_for_find = []
+        
+        while True:
+            elements = cur.fetchone()
+                
+            if elements == None:
+                break
+            elements_for_find.append(elements[0])
+        
+        for unique_word in elements_for_find:
+            for again_unique_word in elements_for_find:
+                if not unique_word == again_unique_word:
+                    cur.execute('INSERT INTO word_group (id, words, word_group_count) VALUES(NULL, \"{}\", NULL)'.format([unique_word, again_unique_word]))
+                    cur.execute('update word_group set word_group_count = ( select count(*) from phrases where {} ) where words = \"{}\"'.format(summing_words_for_find("phrase", [unique_word, again_unique_word]),[unique_word, again_unique_word]))
     
     con.commit()
     con.close()
@@ -152,7 +164,7 @@ def calc_words_count(file_path):
             list_for_sql.append(element)
     write_data(file_path + ".db", list_for_sql, "parsed_file")
     calc_unique_words(file_path + ".db", word_list)
-    calc_word_groups(file_path + ".db", word_list)
+    calc_word_groups(file_path + ".db")
 
 
 def scan_file_again(m, file_path):
