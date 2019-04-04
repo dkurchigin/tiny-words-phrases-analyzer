@@ -10,23 +10,35 @@ word_list = []
 WORD_WEIGHT = 3
 
 
-def check_db_exist(file_path):
+def check_db_exist(input_path):
     base_extension = ".db"
-    file_path = file_path + base_extension
+    file_path = input_path + base_extension
 
-    if os.path.isfile(file_path):
-        print("База данных {} уже существует. Переписать?".format(file_path))
-        print("(Y)es | (N)o?")
+    while True:
+        if os.path.isfile(file_path):
+            print("База данных {} уже существует. Переписать?".format(file_path))
+            print("(Y)es | (N)o?")
 
-        answer = input()
-        pattern_for_yes = '(^[yY]$|^[yY][eE][sS]$|^[дД]$|^[дД][аА]$)'
+            answer = input()
+            pattern_for_yes = '(^[yY]$|^[yY][eE][sS]$|^[дД]$|^[дД][аА]$)'
 
-        if re.match(pattern_for_yes, answer):
-            os.remove(file_path)
-            print("Удаляю старую версию базы данных {}".format(file_path))
-    create_db(file_path)
-    print("Создана база: {}".format(file_path))
-    return file_path, True
+            if re.match(pattern_for_yes, answer):
+                os.remove(file_path)
+                print("Удаляю старую версию базы данных {}".format(file_path))
+            else:
+                break
+        else: 
+            create_db(file_path)
+            print("Создана база: {}".format(file_path))
+            copy_words_from_file(input_path)
+            print("Вычисляю уникальные слова и словосочетания...")
+            calc_words_count(input_path)
+            #show_data_in_db(db_file_path, "parsed_file")
+            #show_data_in_db(db_file_path, "phrases")
+            #show_data_in_db(db_file_path, "unique_words") 
+            break
+       
+    return file_path
 
 
 def write_data(file_path, list_sql, table):
@@ -67,20 +79,22 @@ def calc_word_groups(file_path):
     for element in range(max_lines[0]):
         cur.execute('SELECT word FROM parsed_file where line_in_file = {}'.format(element+1))
         elements_for_find = []
+        rollover_elements = []
         
         while True:
             elements = cur.fetchone()
                 
-            if elements == None:
+            if not elements:
                 break
             elements_for_find.append(elements[0])
-        
+            
         for unique_word in elements_for_find:
             for again_unique_word in elements_for_find:
-                if not unique_word == again_unique_word:
-                    cur.execute('INSERT INTO word_group (id, words, word_group_count) VALUES(NULL, \"{}\", NULL)'.format([unique_word, again_unique_word]))
-                    cur.execute('update word_group set word_group_count = ( select count(*) from phrases where {} ) where words = \"{}\"'.format(summing_words_for_find("phrase", [unique_word, again_unique_word]),[unique_word, again_unique_word]))
-    
+                if (not unique_word == again_unique_word): 
+                    if not (([unique_word, again_unique_word] in rollover_elements) or ([again_unique_word, unique_word] in rollover_elements)): 
+                        cur.execute('INSERT INTO word_group (id, words, word_group_count) VALUES(NULL, \"{}\", NULL)'.format([unique_word, again_unique_word]))
+                        cur.execute('update word_group set word_group_count = ( select count(*) from phrases where {} ) where words = \"{}\"'.format(summing_words_for_find("phrase", [unique_word, again_unique_word]),[unique_word, again_unique_word]))
+                        rollover_elements.append([unique_word, again_unique_word])
     con.commit()
     con.close()
     
@@ -130,7 +144,7 @@ def clear_semicolon(file_path):
             f.write(element)
 
 
-def copy_rules_from_file(file_path):
+def copy_words_from_file(file_path):
     clear_semicolon(file_path)
     f = open(file_path, 'r', encoding='utf8')
     list_for_sql = []
@@ -212,15 +226,8 @@ print_files_on_dir("CSV") #files in dir
 file_number = int(input())
 
 csv_file_path = str(files[file_number])
-db_file_path, write_to_db = check_db_exist(csv_file_path)
+db_file_path = check_db_exist(csv_file_path)
 
-if write_to_db:
-    copy_rules_from_file(csv_file_path)
-    calc_words_count(csv_file_path)
-
-#show_data_in_db(db_file_path, "parsed_file")
-#show_data_in_db(db_file_path, "phrases")
-#show_data_in_db(db_file_path, "unique_words")
 while True:
     words = input_words()
     find_phrases_by_words(db_file_path, "phrases", "phrase", words)
