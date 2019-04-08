@@ -8,7 +8,7 @@ files = os.listdir(directory)
 WORD_WEIGHT = 3
 
 
-class words_database:
+class WordsDatabase:
     def __init__(self, input_file):
         self.input_file = input_file
         self.database_file = "{}.db".format(self.input_file)
@@ -53,7 +53,8 @@ class words_database:
     def calc_words_count(self):
         list_for_sql = []
         self.word_list = sorted(self.word_list)
-        write_data(self.database_file, self.word_list, "unique_words")
+        uw_table = UniqueWords(self.database_file, "unique_words")
+        uw_table.write_data(self.word_list)
 
         # work with file again
         for word in self.word_list:
@@ -61,11 +62,11 @@ class words_database:
             for element in out_sql_element:
                 list_for_sql.append(element)
         write_data(self.database_file, list_for_sql, "parsed_file")
-        calc_unique_words(self.database_file, self.word_list)
-        calc_word_groups(self.database_file)
+        self.calc_unique_words()
+        self.calc_word_groups()
 
     def copy_words_from_file(self):
-        clear_semicolon(self.input_file)
+        self._clear_semicolon()
         f = open(self.input_file, 'r', encoding='utf8')
         list_for_sql = []
 
@@ -96,6 +97,95 @@ class words_database:
         f.close()
         return word_in_lines
 
+    def calc_unique_words(self):
+        con = sqlite3.connect(self.database_file)
+        cur = con.cursor()
+        for element in self.word_list:
+            cur.execute(
+                'update unique_words set word_count = ( select count(*) from parsed_file where word = \"{0}\" ) '
+                'where word = \"{0}\"'.format(element))
+        con.commit()
+        con.close()
+
+    def calc_word_groups(self):
+        con = sqlite3.connect(self.database_file)
+        cur = con.cursor()
+
+        cur.execute('SELECT count(*) FROM phrases')
+        max_lines = cur.fetchone()
+
+        for element in range(max_lines[0]):
+            cur.execute('SELECT word FROM parsed_file where line_in_file = {}'.format(element + 1))
+            elements_for_find = []
+            rollover_elements = []
+
+            while True:
+                elements = cur.fetchone()
+
+                if not elements:
+                    break
+                elements_for_find.append(elements[0])
+
+            for unique_word in elements_for_find:
+                for again_unique_word in elements_for_find:
+                    if not unique_word == again_unique_word:
+                        if not (([unique_word, again_unique_word] in rollover_elements) or (
+                                [again_unique_word, unique_word] in rollover_elements)):
+                            cur.execute('SELECT * FROM word_group where words like \"{}\"'.format(
+                                [unique_word, again_unique_word]))
+                            if not cur.fetchone():
+                                cur.execute(
+                                    'INSERT INTO word_group (id, words, word_group_count) VALUES(NULL, \"{}\", NULL)'.format(
+                                        [unique_word, again_unique_word]))
+                                cur.execute(
+                                    'update word_group set word_group_count = ( select count(*) from phrases where {} ) where words = \"{}\"'.format(
+                                        summing_words_for_find("phrase", [unique_word, again_unique_word]),
+                                        [unique_word, again_unique_word]))
+                            rollover_elements.append([unique_word, again_unique_word])
+        con.commit()
+        con.close()
+
+    def _clear_semicolon(self):
+        deleted_semicolon = []
+        with open(self.input_file, 'r', encoding='utf8') as f:
+            for line in f:
+                deleted_semicolon.append(re.sub(r';', '', line))
+        with open(self.input_file, 'w', encoding='utf8') as f:
+            for element in deleted_semicolon:
+                f.write(element)
+
+
+class UniqueWords:
+    def __init__(self, database_file, table_name):
+        self.database_file = database_file
+        self.table_name = table_name
+
+    def show_data(self):
+        con = sqlite3.connect(self.database_file)
+        cur = con.cursor()
+        cur.execute('SELECT * FROM {} ORDER BY word_count'.format(self.table_name))
+        for cur_element in cur.fetchall():
+            print("Слово \"{}\" встречается {} раз".format(cur_element[1], cur_element[2]))
+        con.close()
+
+    def write_data(self, list_sql):
+        con = sqlite3.connect(self.database_file)
+        cur = con.cursor()
+        for element in list_sql:
+            cur.execute('INSERT INTO unique_words (id, word, word_count) VALUES(NULL, \"{}\", NULL)'.format(element))
+        con.commit()
+        con.close()
+
+
+def summing_words_for_find(column, words_array):
+    resulting_string = ""
+    for word in words_array:
+        if resulting_string == "":
+            resulting_string = resulting_string + "{} like \"%{}%\"".format(column, word)
+        else:
+            resulting_string = resulting_string + " and {} like \"%{}%\"".format(column, word)
+    return resulting_string
+
 
 def write_data(file_path, list_sql, table):
     con = sqlite3.connect(file_path)
@@ -109,85 +199,17 @@ def write_data(file_path, list_sql, table):
         elif table == 'phrases':
             element = re.sub(r'\n', '', element)
             cur.execute('INSERT INTO phrases (id, phrase) VALUES(NULL, \"{}\")'.format(element))
-        elif table == 'unique_words':
-            cur.execute('INSERT INTO unique_words (id, word, word_count) VALUES(NULL, \"{}\", NULL)'.format(element))
     con.commit()
     con.close()
 
-
-def calc_unique_words(file_path, list_sql):
-    con = sqlite3.connect(file_path)
-    cur = con.cursor()
-    for element in list_sql:
-        cur.execute('update unique_words set word_count = ( select count(*) from parsed_file where word = \"{0}\" ) '
-                    'where word = \"{0}\"'.format(element))
-    con.commit()
-    con.close()
-
-    
-def calc_word_groups(file_path):
-    con = sqlite3.connect(file_path)
-    cur = con.cursor()
-    
-    cur.execute('SELECT count(*) FROM phrases')
-    max_lines = cur.fetchone()
-    
-    for element in range(max_lines[0]):
-        cur.execute('SELECT word FROM parsed_file where line_in_file = {}'.format(element+1))
-        elements_for_find = []
-        rollover_elements = []
-        
-        while True:
-            elements = cur.fetchone()
-                
-            if not elements:
-                break
-            elements_for_find.append(elements[0])
-            
-        for unique_word in elements_for_find:
-            for again_unique_word in elements_for_find:
-                if not unique_word == again_unique_word:
-                    if not (([unique_word, again_unique_word] in rollover_elements) or ([again_unique_word, unique_word] in rollover_elements)):
-                        cur.execute('SELECT * FROM word_group where words like \"{}\"'.format([unique_word, again_unique_word]))
-                        if not cur.fetchone():
-                            cur.execute('INSERT INTO word_group (id, words, word_group_count) VALUES(NULL, \"{}\", NULL)'.format([unique_word, again_unique_word]))
-                            cur.execute('update word_group set word_group_count = ( select count(*) from phrases where {} ) where words = \"{}\"'.format(summing_words_for_find("phrase", [unique_word, again_unique_word]),[unique_word, again_unique_word]))
-                        rollover_elements.append([unique_word, again_unique_word])
-    con.commit()
-    con.close()
-    
 
 def show_data_in_db(file_path, table):
     con = sqlite3.connect(file_path)
 
     cur = con.cursor()
-    if table == "unique_words":
-        cur.execute('SELECT * FROM {} ORDER BY word_count'.format(table))
-        for cur_element in cur.fetchall():
-            print("Слово \"{}\" встречается {} раз".format(cur_element[1], cur_element[2]))
-    else:
-        cur.execute('SELECT * FROM {}'.format(table))
-        print(cur.fetchall())
+    cur.execute('SELECT * FROM {}'.format(table))
+    print(cur.fetchall())
     con.close()
-
-
-def print_files_on_dir(text):
-    print('\n===List of files===')
-    for file in files:
-        print("[{}] - {}".format(files.index(file), file))
-    print('===================\n')
-    final_message = "Select {} with tests. Enter the number:".format(text)
-    print(final_message)
-
-
-def clear_semicolon(file_path):
-    deleted_semicolon = []
-    with open(file_path, 'r', encoding='utf8') as f:
-        for line in f:
-            deleted_semicolon.append(re.sub(r';', '', line))
-    with open(file_path, 'w', encoding='utf8') as f:
-        for element in deleted_semicolon:
-            f.write(element)
 
 
 def find_phrases_by_words(file_path, table, column, words_for_find):
@@ -202,14 +224,13 @@ def find_phrases_by_words(file_path, table, column, words_for_find):
     con.close()
 
 
-def summing_words_for_find(column, words_array):
-    resulting_string = ""
-    for word in words_array:
-        if resulting_string == "":
-            resulting_string = resulting_string + "{} like \"%{}%\"".format(column, word)
-        else:
-            resulting_string = resulting_string + " and {} like \"%{}%\"".format(column, word)
-    return resulting_string
+def print_files_on_dir(text):
+    print('\n===List of files===')
+    for file in files:
+        print("[{}] - {}".format(files.index(file), file))
+    print('===================\n')
+    final_message = "Select {} with tests. Enter the number:".format(text)
+    print(final_message)
 
 
 def input_words():
@@ -222,7 +243,7 @@ print_files_on_dir("CSV") #files in dir
 file_number = int(input())
 
 csv_file_path = str(files[file_number])
-words_db = words_database(csv_file_path)
+words_db = WordsDatabase(csv_file_path)
 
 while True:
     words = input_words()
