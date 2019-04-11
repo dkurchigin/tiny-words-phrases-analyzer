@@ -13,9 +13,12 @@ class WordsDatabase:
         self.input_file = input_file
         self.database_file = "{}.db".format(self.input_file)
         self.word_list = []
-        self.check_db_exist()
+        uw_table = UniqueWords(self.database_file, "unique_words")
+        pf_table = ParsedFile(self.database_file, "parsed_file")
+        phs_table = Phrases(self.database_file, "phrases")
+        self.check_db_exist(uw_table, pf_table, phs_table)
 
-    def check_db_exist(self):
+    def check_db_exist(self, uw_table, pf_table, phs_table):
         while True:
             if os.path.isfile(self.database_file):
                 print("База данных {} уже существует. Переписать?".format(self.database_file))
@@ -32,9 +35,9 @@ class WordsDatabase:
             else:
                 self.create_db()
                 print("Создана база: {}".format(self.database_file))
-                self.copy_words_from_file()
+                self.copy_words_from_file(phs_table)
                 print("Вычисляю уникальные слова и словосочетания...")
-                self.calc_words_count()
+                self.calc_words_count(uw_table, pf_table)
                 # show_data_in_db(db_file_path, "parsed_file")
                 # show_data_in_db(db_file_path, "phrases")
                 # show_data_in_db(db_file_path, "unique_words")
@@ -50,22 +53,21 @@ class WordsDatabase:
         con.commit()
         con.close()
 
-    def calc_words_count(self):
+    def calc_words_count(self, unique_words, parsed_file):
         list_for_sql = []
         self.word_list = sorted(self.word_list)
-        uw_table = UniqueWords(self.database_file, "unique_words")
-        uw_table.write_data(self.word_list)
+        unique_words.write_data(self.word_list)
 
         # work with file again
         for word in self.word_list:
             out_sql_element = self.scan_file_again(self.word_list.index(word))
             for element in out_sql_element:
                 list_for_sql.append(element)
-        write_data(self.database_file, list_for_sql, "parsed_file")
+        parsed_file.write_data(list_for_sql)
         self.calc_unique_words()
         self.calc_word_groups()
 
-    def copy_words_from_file(self):
+    def copy_words_from_file(self, phrases):
         self._clear_semicolon()
         f = open(self.input_file, 'r', encoding='utf8')
         list_for_sql = []
@@ -83,7 +85,7 @@ class WordsDatabase:
                     if not equal_word:
                         self.word_list.append(word)
         f.close()
-        write_data(self.database_file, list_for_sql, "phrases")
+        phrases.write_data(list_for_sql)
 
     def scan_file_again(self, m):
         f = open(self.input_file, 'r', encoding='utf8')
@@ -177,6 +179,43 @@ class UniqueWords:
         con.close()
 
 
+class ParsedFile(UniqueWords):
+    def __init__(self, database_file, table_name):
+        super().__init__(database_file, table_name)
+
+    def show_data(self):
+        con = sqlite3.connect(self.database_file)
+        cur = con.cursor()
+        cur.execute('SELECT * FROM {}'.format(self.table_name))
+        print(cur.fetchall())
+        con.close()
+
+    def write_data(self, list_sql):
+        con = sqlite3.connect(self.database_file)
+        cur = con.cursor()
+        for element in list_sql:
+            word = re.sub(r'\s.*$', '', element)
+            line_in_file = re.sub(r'^.*\s', '', element)
+            cur.execute('INSERT INTO parsed_file (id, word, line_in_file) VALUES(NULL, \"{}\", {})'
+                        ''.format(word, str(line_in_file)))
+        con.commit()
+        con.close()
+
+
+class Phrases(ParsedFile):
+    def __init__(self, database_file, table_name):
+        super().__init__(database_file, table_name)
+
+    def write_data(self, list_sql):
+        con = sqlite3.connect(self.database_file)
+        cur = con.cursor()
+        for element in list_sql:
+            element = re.sub(r'\n', '', element)
+            cur.execute('INSERT INTO phrases (id, phrase) VALUES(NULL, \"{}\")'.format(element))
+        con.commit()
+        con.close()
+
+
 def summing_words_for_find(column, words_array):
     resulting_string = ""
     for word in words_array:
@@ -185,31 +224,6 @@ def summing_words_for_find(column, words_array):
         else:
             resulting_string = resulting_string + " and {} like \"%{}%\"".format(column, word)
     return resulting_string
-
-
-def write_data(file_path, list_sql, table):
-    con = sqlite3.connect(file_path)
-    cur = con.cursor()
-    for element in list_sql:
-        if table == 'parsed_file':
-            word = re.sub(r'\s.*$', '', element)
-            line_in_file = re.sub(r'^.*\s', '', element)
-            cur.execute('INSERT INTO parsed_file (id, word, line_in_file) VALUES(NULL, \"{}\", {})'
-                        ''.format(word, str(line_in_file)))
-        elif table == 'phrases':
-            element = re.sub(r'\n', '', element)
-            cur.execute('INSERT INTO phrases (id, phrase) VALUES(NULL, \"{}\")'.format(element))
-    con.commit()
-    con.close()
-
-
-def show_data_in_db(file_path, table):
-    con = sqlite3.connect(file_path)
-
-    cur = con.cursor()
-    cur.execute('SELECT * FROM {}'.format(table))
-    print(cur.fetchall())
-    con.close()
 
 
 def find_phrases_by_words(file_path, table, column, words_for_find):
